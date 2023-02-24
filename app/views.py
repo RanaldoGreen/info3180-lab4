@@ -6,6 +6,8 @@ from werkzeug.utils import secure_filename
 from app.models import UserProfile
 from app.forms import LoginForm
 from werkzeug.security import check_password_hash
+from app.forms import UploadForm
+from flask import send_from_directory
 
 
 ###
@@ -21,21 +23,31 @@ def home():
 @app.route('/about/')
 def about():
     """Render the website's about page."""
-    return render_template('about.html', name="Mary Jane")
+    return render_template('about.html', name="Ranaldo Green")
 
 
 @app.route('/upload', methods=['POST', 'GET'])
+@login_required
 def upload():
     # Instantiate your form class
+    form = UploadForm()
 
     # Validate file upload on submit
     if form.validate_on_submit():
+        
         # Get file data and save to your uploads folder
+        img = form.file.data
+        filename = secure_filename(img.filename)
+        img.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        flash('File Saved', 'success')
-        return redirect(url_for('home')) # Update this to redirect the user to a route that displays all uploaded image files
+        flash('File uploaded successfully!', 'success')
+        return redirect(url_for('files')) # Update this to redirect the user to a route that displays all uploaded image files
+    elif form.is_submitted():
+            flash('Only JPG, PNG and JPEG files are allowed.')
+            return render_template('upload.html', form=form)
+    else:
+        return render_template('upload.html', form=form)
 
-    return render_template('upload.html')
 
 
 @app.route('/login', methods=['POST', 'GET'])
@@ -108,3 +120,33 @@ def add_header(response):
 def page_not_found(error):
     """Custom 404 page."""
     return render_template('404.html'), 404
+
+
+
+def get_uploaded_images():
+    images = []
+    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+        if filename.endswith('.jpg') or filename.endswith('.png') or filename.endswith('.jpeg'):
+            images.append(filename)
+    return images
+
+
+
+@app.route('/uploads/<filename>')
+def get_image(filename):
+    return send_from_directory(os.path.join(os.getcwd(), app.config['UPLOAD_FOLDER']), filename)
+
+
+
+@app.route('/files')
+@login_required
+def files():
+    images = get_uploaded_images()
+    return render_template('files.html', images=images)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('home'))
